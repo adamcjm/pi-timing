@@ -13,8 +13,11 @@
  *   - 累计活跃 = Σ生成 + Σ工具，不含空闲等待；跨重启由会话 entries 的 timestamp 差重算
  *
  * 命令：
- *   /timing       开关 widget
- *   /timing list  切换最近 20 轮明细列表
+ *   /timing            开关 widget
+ *   /timing list       切换最近 20 轮明细列表
+ *   /timing lang zh|en|auto   强制语言 / 自动（默认 auto，跟随消息语言）
+ *
+ * 多语言：初始取系统 locale（Intl），input 事件按 CJK 占比自动切换中/英。
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
@@ -31,6 +34,42 @@ interface TurnDetail {
 export default function (pi: ExtensionAPI) {
 	let enabled = true;
 	let showDetail = false;
+
+	// ---- 多语言（auto 跟随用户消息语言；系统 locale 定初始；命令可强制）----
+	type LangMode = "auto" | "zh" | "en";
+	let langMode: LangMode = "auto";
+	let currentLang: "zh" | "en" = detectSystemLang();
+	const STRINGS = {
+		zh: {
+			span: "会话跨度",
+			active: "累计活跃",
+			turns: "轮",
+			roundElapsed: "本轮已耗时",
+			generating: "生成中",
+			gen: "生成",
+			toolRunning: "工具运行中",
+			lastReply: "上次回复",
+			lastGen: "上次生成",
+			none: "--",
+			think: "思考≈",
+			tool: "工具",
+		},
+		en: {
+			span: "span",
+			active: "active",
+			turns: " turns",
+			roundElapsed: "this turn",
+			generating: "generating",
+			gen: "gen",
+			toolRunning: "tool running",
+			lastReply: "last reply",
+			lastGen: "last gen",
+			none: "--",
+			think: "think≈",
+			tool: "tool",
+		},
+	} as const;
+	const t = (key: keyof (typeof STRINGS)["zh"]): string => STRINGS[currentLang][key];
 
 	// ---- 当前生成状态 ----
 	let genStartMs = 0;
@@ -79,6 +118,21 @@ export default function (pi: ExtensionAPI) {
 			lastWidgetUpdate = now;
 			updateWidget(ctx);
 		}
+	}
+
+	function detectSystemLang(): "zh" | "en" {
+		try {
+			const loc = (Intl.DateTimeFormat().resolvedOptions().locale || "").toLowerCase();
+			if (loc.startsWith("zh")) return "zh";
+		} catch {
+			// ignore
+		}
+		return "en";
+	}
+
+	function detectMsgLang(text: string): "zh" | "en" {
+		const cjk = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
+		return text.length > 0 && cjk / text.length > 0.15 ? "zh" : "en";
 	}
 
 	function fmt(ms: number): string {
@@ -268,13 +322,13 @@ export default function (pi: ExtensionAPI) {
 					return Math.max(0, last - spanFirstTs);
 				};
 				const head = () =>
-					D("⏱ 会话跨度 ") + A(fmt(spanMs())) + D("  ·  累计活跃 ") + S(fmt(cumulativeMs)) + D(` (${turns}轮)`);
+					D(`⏱ ${t("span")} `) + A(fmt(spanMs())) + D("  ·  " + t("active") + " ") + S(fmt(cumulativeMs)) + D(` (${turns}${t("turns")})`);
 
 				// 忙碌状态：行首 + 本轮已耗时（实时跳秒）
 				const busyHead = () => {
 					let s = head();
 					if (roundStartMs !== undefined && roundStartMs > 0) {
-						s += D("  ·  本轮已耗时 ") + A(fmt(Math.max(0, now - roundStartMs)));
+						s += D("  ·  " + t("roundElapsed") + " ") + A(fmt(Math.max(0, now - roundStartMs)));
 					}
 					return s;
 				};
@@ -283,32 +337,32 @@ export default function (pi: ExtensionAPI) {
 					// 生成中（实时跳秒，由 message_update 节流驱动刷新）
 					const el = now - genStartMs;
 					let line = busyHead();
-					line += D("  ·  生成中 ") + A(fmt(el));
+					line += D("  ·  " + t("generating") + " ") + A(fmt(el));
 					if (sawThinking && firstTextMs > 0) {
-						line += D(" (思考≈") + T(fmt(Math.max(0, firstTextMs - genStartMs))) + D(")");
+						line += D(` (${t("think")}`) + T(fmt(Math.max(0, firstTextMs - genStartMs))) + D(")");
 					}
 					lines.push(line);
 				} else if (activeTools > 0 && toolChunkStartMs !== undefined) {
 					// 工具运行中（interval 驱动跳秒）
 					const el = now - toolChunkStartMs;
 					let line = busyHead();
-					if (turns > 0 || lastGenMs > 0) line += D("  ·  生成 ") + A(fmt(lastGenMs));
-					line += D("  ·  工具运行中 ") + A(fmt(el));
+					if (turns > 0 || lastGenMs > 0) line += D("  ·  " + t("gen") + " ") + A(fmt(lastGenMs));
+					line += D("  ·  " + t("toolRunning") + " ") + A(fmt(el));
 					lines.push(line);
 				} else {
 					// 空闲：行首（会话跨度+累计活跃），其余保持原顺序
 					let line = head();
 					if (lastReplyMs > 0) {
-						line += D("  ·  上次回复 ") + A(fmt(lastReplyMs));
-						line += D(" (生成 ") + A(fmt(lastReplyGenMs));
+						line += D("  ·  " + t("lastReply") + " ") + A(fmt(lastReplyMs));
+						line += D(` (${t("gen")} `) + A(fmt(lastReplyGenMs));
 						if (roundThinkingMs > 0) {
-							line += D(" · 思考≈") + T(fmt(roundThinkingMs));
+							line += D(` · ${t("think")}`) + T(fmt(roundThinkingMs));
 						}
-						line += D(" · 工具 ") + A(fmt(lastReplyToolMs)) + D(")");
+						line += D(` · ${t("tool")} `) + A(fmt(lastReplyToolMs)) + D(")");
 					} else if (lastGenMs > 0) {
-						line += D("  ·  上次生成 ") + A(fmt(lastGenMs));
+						line += D("  ·  " + t("lastGen") + " ") + A(fmt(lastGenMs));
 					} else {
-						line += D("  ·  上次回复 --");
+						line += D(`  ·  ${t("lastReply")} ${t("none")}`);
 					}
 					lines.push(line);
 				}
@@ -316,9 +370,9 @@ export default function (pi: ExtensionAPI) {
 				if (showDetail && recent.length > 0) {
 					lines.push("");
 					recent.forEach((r, i) => {
-						let l = D(`  #${recent.length - i} 生成 `) + A(fmt(r.genMs));
-						if (r.thinkingMs !== undefined) l += D("  思考≈") + T(fmt(r.thinkingMs));
-						l += D("  工具 ") + A(fmt(r.toolMs));
+						let l = D(`  #${recent.length - i} ${t("gen")} `) + A(fmt(r.genMs));
+						if (r.thinkingMs !== undefined) l += D(`  ${t("think")}`) + T(fmt(r.thinkingMs));
+						l += D(`  ${t("tool")} `) + A(fmt(r.toolMs));
 						lines.push(l);
 					});
 				}
@@ -334,6 +388,18 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// ---- 事件 ----
+
+	pi.on("input", async (event, ctx) => {
+		// 自动跟随用户消息语言（斜杠命令和过短输入不触发，避免误切）
+		if (langMode !== "auto") return;
+		const text = event.text ?? "";
+		if (text.startsWith("/") || text.trim().length < 4) return;
+		const l = detectMsgLang(text);
+		if (l !== currentLang) {
+			currentLang = l;
+			updateWidget(ctx);
+		}
+	});
 
 	pi.on("session_start", async (_e, ctx) => {
 		recomputeBase(ctx);
@@ -448,10 +514,27 @@ export default function (pi: ExtensionAPI) {
 	// ---- 命令 ----
 
 	pi.registerCommand("timing", {
-		description: "切换耗时 widget；/timing list 切换最近 20 轮明细",
+		description: "Toggle timing widget; /timing list = detail; /timing lang zh|en|auto = language",
 		handler: async (args, ctx) => {
-			if (args?.trim() === "list") showDetail = !showDetail;
-			else enabled = !enabled;
+			const a = (args ?? "").trim();
+			if (a === "list") {
+				showDetail = !showDetail;
+			} else if (a.startsWith("lang")) {
+				const v = a.slice(4).trim();
+				if (v === "zh" || v === "en") {
+					langMode = v;
+					currentLang = v;
+					ctx.ui.notify(`timing language: ${v}`, "info");
+				} else if (v === "auto") {
+					langMode = "auto";
+					currentLang = detectSystemLang();
+					ctx.ui.notify(`timing language: auto (${currentLang})`, "info");
+				} else {
+					ctx.ui.notify(`Usage: /timing lang zh | en | auto (current: ${langMode})`, "info");
+				}
+			} else {
+				enabled = !enabled;
+			}
 			updateWidget(ctx);
 		},
 	});

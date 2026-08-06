@@ -1,0 +1,14 @@
+{
+  "name": "pi-timing",
+  "version": "1.0.0",
+  "description": "Timing widget for pi: per-turn generation time (with thinking estimate), tool time, cumulative active time (excluding idle), and session span. Commands: /timing, /timing list",
+  "keywords": ["pi-package"],
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./extensions"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}

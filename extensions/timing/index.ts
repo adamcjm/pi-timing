@@ -43,7 +43,6 @@ export default function (pi: ExtensionAPI) {
 		zh: {
 			span: "会话跨度",
 			active: "累计活跃",
-			turns: "轮",
 			roundElapsed: "本轮已耗时",
 			generating: "生成中",
 			gen: "生成",
@@ -55,10 +54,9 @@ export default function (pi: ExtensionAPI) {
 			tool: "工具",
 		},
 		en: {
-			span: "span",
-			active: "active",
-			turns: " turns",
-			roundElapsed: "this turn",
+			span: "elapsed",
+			active: "active time",
+			roundElapsed: "turn",
 			generating: "generating",
 			gen: "gen",
 			toolRunning: "tool running",
@@ -70,6 +68,9 @@ export default function (pi: ExtensionAPI) {
 		},
 	} as const;
 	const t = (key: keyof (typeof STRINGS)["zh"]): string => STRINGS[currentLang][key];
+	// 轮数后缀（英文区分单复数：1 turn / 2 turns）
+	const turnSuffix = (n: number): string =>
+		currentLang === "zh" ? "轮" : n === 1 ? " turn" : " turns";
 
 	// ---- 当前生成状态 ----
 	let genStartMs = 0;
@@ -322,7 +323,7 @@ export default function (pi: ExtensionAPI) {
 					return Math.max(0, last - spanFirstTs);
 				};
 				const head = () =>
-					D(`⏱ ${t("span")} `) + A(fmt(spanMs())) + D("  ·  " + t("active") + " ") + S(fmt(cumulativeMs)) + D(` (${turns}${t("turns")})`);
+					D(`⏱ ${t("span")} `) + A(fmt(spanMs())) + D("  ·  " + t("active") + " ") + S(fmt(cumulativeMs)) + D(` (${turns}${turnSuffix(turns)})`);
 
 				// 忙碌状态：行首 + 本轮已耗时（实时跳秒）
 				const busyHead = () => {

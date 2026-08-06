@@ -21,23 +21,13 @@ pi install git:github.com/adamcjm/pi-timing
 
 或者把 `extensions/timing` 拷贝到 `~/.pi/agent/extensions/`（或项目级 `.pi/extensions/`）。
 
+安装后执行 `/reload`（或重启 pi）生效。
+
 ## 使用方法
 
-安装后执行 `/reload`（或重启 pi）生效。widget 显示在输入框上方。
+生效后，widget 显示在输入框上方。输入任意消息并回车 —— widget 立即开始工作（生成中实时计时，回复完成后显示最终拆解）。
 
-### 命令
-
-| 命令 | 作用 |
-|---|---|
-| `/timing` | 开关 widget |
-| `/timing list` | 切换最近 20 轮明细列表 |
-| `/timing lang zh` | 强制中文 |
-| `/timing lang en` | 强制英文 |
-| `/timing lang auto` | 恢复自动（跟随消息语言） |
-
-### Widget 示例
-
-空闲时：
+Widget 示例：
 
 ```
 ⏱ 会话跨度 10h31m  ·  累计活跃 36m26s (14轮)  ·  上次回复 30.4s (生成 25.2s · 思考≈25.2s · 工具 3.0s)
@@ -49,13 +39,61 @@ pi install git:github.com/adamcjm/pi-timing
 ⏱ 会话跨度 1h02m · 累计活跃 12.4s (3轮) · 本轮已耗时 5m37s · 生成 1.7s · 工具运行中 5m35s
 ```
 
-### 术语对照
+英文显示（消息语言为英文时自动切换，或 `/timing lang en` 强制）：
+
+```
+⏱ elapsed 1h02m · active time 12.4s (3 turns) · turn 5m37s · gen 1.7s · tool running 5m35s
+```
+
+## 斜杠命令
+
+所有命令在 pi 输入框输入，回车执行。
+
+### `/timing` — 开关 widget
+
+```bash
+/timing
+```
+
+- 执行一次隐藏 widget，再执行一次显示。
+- 隐藏期间计时器照常运行，不会丢失任何数据。
+- 无确认提示，widget 直接消失/出现。
+
+### `/timing list` — 逐轮明细列表
+
+```bash
+/timing list
+```
+
+在 widget 内显示最近 20 轮，最新在前：
+
+```
+#1 生成 575ms  思考≈9ms  工具 9ms
+#2 生成 776ms  思考≈700ms  工具 0ms
+```
+
+再次执行 `/timing list` 隐藏列表。
+
+### `/timing lang zh|en|auto` — widget 语言
+
+```bash
+/timing lang zh     # 强制中文
+/timing lang en     # 强制英文
+/timing lang auto   # 恢复自动（默认）
+```
+
+- `auto`（默认）：初始取系统 locale，之后跟随你的消息语言（CJK 占比检测）。
+- `auto` 模式下，斜杠命令和过短的消息不会触发切换，避免误切。
+- 执行后屏幕底部会显示确认通知（如 `timing language: en`）。
+- 设置为内存态：重启 pi 后恢复 `auto`。
+
+## 术语对照
 
 | 中文 | English |
 |---|---|
-| 会话跨度 | span（墙钟，含空闲） |
-| 累计活跃 | active（Σ生成 + Σ工具，不含空闲） |
-| 本轮已耗时 | this turn |
+| 会话跨度 | elapsed（墙钟，含空闲） |
+| 累计活跃 | active time（Σ生成 + Σ工具，不含空闲） |
+| 本轮已耗时 | turn |
 | 生成 / 生成中 | gen / generating |
 | 思考≈ | think≈（思考时间估算） |
 | 工具 / 工具运行中 | tool / tool running |

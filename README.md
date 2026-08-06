@@ -21,42 +21,75 @@ pi install git:github.com/adamcjm/pi-timing
 
 Or copy `extensions/timing` into `~/.pi/agent/extensions/` (or `.pi/extensions/` for a project).
 
+After installing, run `/reload` (or restart pi) to activate.
+
 ## Usage
 
-After installing, run `/reload` (or restart pi) to activate. The widget appears above the input editor.
+Once active, the widget appears above the input editor. Type any message and press Enter — the widget starts updating immediately (live counter while generating, then the final breakdown when the reply finishes).
 
-### Commands
-
-| Command | Action |
-|---|---|
-| `/timing` | Toggle the widget on/off |
-| `/timing list` | Toggle the detail list (last 20 turns) |
-| `/timing lang zh` | Force Chinese |
-| `/timing lang en` | Force English |
-| `/timing lang auto` | Back to automatic (follows your message language) |
-
-### Widget example
-
-Idle:
+Widget examples:
 
 ```
 ⏱ 会话跨度 10h31m  ·  累计活跃 36m26s (14轮)  ·  上次回复 30.4s (生成 25.2s · 思考≈25.2s · 工具 3.0s)
-⏱ span 10h31m  ·  active 36m26s (14 turns)  ·  last reply 30.4s (gen 25.2s · think≈25.2s · tool 3.0s)
+⏱ elapsed 10h31m  ·  active time 36m26s (14 turns)  ·  last reply 30.4s (gen 25.2s · think≈25.2s · tool 3.0s)
 ```
 
 While working (live-updating):
 
 ```
 ⏱ 会话跨度 1h02m · 累计活跃 12.4s (3轮) · 本轮已耗时 5m37s · 生成 1.7s · 工具运行中 5m35s
+⏱ elapsed 1h02m · active time 12.4s (3 turns) · turn 5m37s · gen 1.7s · tool running 5m35s
 ```
 
-### Terminology
+## Slash commands
+
+All commands are typed in the pi input editor and submitted with Enter.
+
+### `/timing` — toggle the widget
+
+```bash
+/timing
+```
+
+- Run once to hide the widget, run again to show it.
+- Timers keep running while hidden — nothing is lost.
+- No confirmation is shown; the widget simply disappears/appears.
+
+### `/timing list` — per-turn detail list
+
+```bash
+/timing list
+```
+
+Shows the last 20 turns, newest first, inside the widget:
+
+```
+#1 gen 575ms think≈9ms tool 9ms
+#2 gen 776ms think≈700ms tool 0ms
+```
+
+Run `/timing list` again to hide the list.
+
+### `/timing lang zh|en|auto` — widget language
+
+```bash
+/timing lang zh     # force Chinese
+/timing lang en     # force English
+/timing lang auto   # back to automatic (default)
+```
+
+- `auto` (default): starts from your system locale, then follows the language of your messages (CJK ratio detection).
+- In `auto` mode, slash commands and very short messages are ignored to avoid accidental switching.
+- A confirmation notification is shown at the bottom of the screen (e.g. `timing language: en`).
+- The setting is in-memory: it resets to `auto` on pi restart.
+
+## Terminology
 
 | 中文 | English |
 |---|---|
-| 会话跨度 | span (wall-clock, includes idle) |
-| 累计活跃 | active (Σ gen + Σ tool, no idle) |
-| 本轮已耗时 | this turn |
+| 会话跨度 | elapsed (wall-clock, includes idle) |
+| 累计活跃 | active time (Σ gen + Σ tool, no idle) |
+| 本轮已耗时 | turn |
 | 生成 / 生成中 | gen / generating |
 | 思考≈ | think≈ (estimated thinking time) |
 | 工具 / 工具运行中 | tool / tool running |

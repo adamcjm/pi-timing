@@ -27,19 +27,25 @@ pi install git:github.com/adamcjm/pi-timing
 
 生效后，widget 显示在输入框上方。输入任意消息并回车 —— widget 立即开始工作（生成中实时计时，回复完成后显示最终拆解）。
 
-Widget 示例：
+Widget 示例（中文显示）：
 
 ```
 ⏱ 会话跨度 10h31m  ·  累计活跃 36m26s (14轮)  ·  上次回复 30.4s (生成 25.2s · 思考≈25.2s · 工具 3.0s)
 ```
 
-工作中（实时跳秒）：
+Widget 示例（英文显示——消息语言为英文时自动切换，或 `/timing lang en` 强制）：
+
+```
+⏱ elapsed 10h31m  ·  active time 36m26s (14 turns)  ·  last reply 30.4s (gen 25.2s · think≈25.2s · tool 3.0s)
+```
+
+工作中（实时跳秒，中文显示）：
 
 ```
 ⏱ 会话跨度 1h02m · 累计活跃 12.4s (3轮) · 本轮已耗时 5m37s · 生成 1.7s · 工具运行中 5m35s
 ```
 
-英文显示（消息语言为英文时自动切换，或 `/timing lang en` 强制）：
+工作中（实时跳秒，英文显示）：
 
 ```
 ⏱ elapsed 1h02m · active time 12.4s (3 turns) · turn 5m37s · gen 1.7s · tool running 5m35s
@@ -65,11 +71,18 @@ Widget 示例：
 /timing list
 ```
 
-在 widget 内显示最近 20 轮，最新在前：
+在 widget 内显示最近 20 轮，最新在前（中文显示）：
 
 ```
 #1 生成 575ms  思考≈9ms  工具 9ms
 #2 生成 776ms  思考≈700ms  工具 0ms
+```
+
+英文显示：
+
+```
+#1 gen 575ms think≈9ms tool 9ms
+#2 gen 776ms think≈700ms tool 0ms
 ```
 
 再次执行 `/timing list` 隐藏列表。

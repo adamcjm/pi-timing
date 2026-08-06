@@ -34,7 +34,7 @@ Widget examples:
 ⏱ elapsed 10h31m  ·  active time 36m26s (14 turns)  ·  last reply 30.4s (gen 25.2s · think≈25.2s · tool 3.0s)
 ```
 
-While working (live-updating):
+While working (live-updating, Chinese / English):
 
 ```
 ⏱ 会话跨度 1h02m · 累计活跃 12.4s (3轮) · 本轮已耗时 5m37s · 生成 1.7s · 工具运行中 5m35s
@@ -61,11 +61,13 @@ All commands are typed in the pi input editor and submitted with Enter.
 /timing list
 ```
 
-Shows the last 20 turns, newest first, inside the widget:
+Shows the last 20 turns, newest first, inside the widget (English / Chinese):
 
 ```
 #1 gen 575ms think≈9ms tool 9ms
 #2 gen 776ms think≈700ms tool 0ms
+#1 生成 575ms  思考≈9ms  工具 9ms
+#2 生成 776ms  思考≈700ms  工具 0ms
 ```
 
 Run `/timing list` again to hide the list.

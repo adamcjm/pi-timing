@@ -3,7 +3,7 @@
 > [中文文档 (Chinese)](README.zh-CN.md)
 
 <p align="center">
-  <img src="docs/demo.gif" alt="pi-timing demo" width="720">
+  <img src="https://raw.githubusercontent.com/adamcjm/pi-timing/main/docs/demo.gif" alt="pi-timing demo" width="720">
 </p>
 
 Timing widget for [pi](https://pi.dev) — shows how long each turn actually took, and how much of your session was real work vs idle waiting.

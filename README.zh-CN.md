@@ -3,7 +3,7 @@
 > [English Docs](README.md)
 
 <p align="center">
-  <img src="docs/demo.gif" alt="pi-timing demo" width="720">
+  <img src="https://raw.githubusercontent.com/adamcjm/pi-timing/main/docs/demo.gif" alt="pi-timing demo" width="720">
 </p>
 
 [pi](https://pi.dev) 的计时组件 —— 显示每次回复实际花了多长时间，以及你的会话里有多少是真正干活、多少是在空等。

@@ -20,7 +20,7 @@ Timing widget for [pi](https://pi.dev) — shows how long each turn actually too
 ## Install
 
 ```bash
-pi install git:github.com/adamcjm/pi-timing
+pi install npm:pi-timing
 ```
 
 Or copy `extensions/timing` into `~/.pi/agent/extensions/` (or `.pi/extensions/` for a project).
@@ -137,7 +137,7 @@ ln -s ~/.pi/dev/pi-timing/extensions/timing ~/.pi/agent/extensions/timing
 If you installed the package via `pi install`, remove it first to avoid double-loading:
 
 ```bash
-pi remove git:github.com/adamcjm/pi-timing
+pi remove npm:pi-timing
 ```
 
 ## License

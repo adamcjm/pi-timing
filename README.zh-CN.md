@@ -20,7 +20,7 @@
 ## 安装
 
 ```bash
-pi install git:github.com/adamcjm/pi-timing
+pi install npm:pi-timing
 ```
 
 或者把 `extensions/timing` 拷贝到 `~/.pi/agent/extensions/`（或项目级 `.pi/extensions/`）。
@@ -152,7 +152,7 @@ ln -s ~/.pi/dev/pi-timing/extensions/timing ~/.pi/agent/extensions/timing
 如果之前用 `pi install` 装过包，先移除避免重复加载：
 
 ```bash
-pi remove git:github.com/adamcjm/pi-timing
+pi remove npm:pi-timing
 ```
 
 ## 许可证

@@ -2,6 +2,14 @@
   "name": "pi-timing",
   "version": "1.1.1",
   "description": "Timing widget for pi: per-turn generation time (with thinking estimate), tool time, cumulative active time (excluding idle), and session span. Commands: /timing, /timing list",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamcjm/pi-timing.git"
+  },
+  "homepage": "https://github.com/adamcjm/pi-timing",
+  "bugs": {
+    "url": "https://github.com/adamcjm/pi-timing/issues"
+  },
   "keywords": [
     "pi-package"
   ],

@@ -12,6 +12,7 @@ Timing widget for [pi](https://pi.dev) — shows how long each turn actually too
 
 - **Per-turn generation time** — wall-clock of each LLM stream (thinking + reply), with an estimated thinking split (`think≈`)
 - **Tool time** — wall-clock execution; parallel tools counted once
+- **Per-reply annotation line** — under each final reply, a dim line shows the reply's total time (user message → reply done, thinking + generation + tools) and tool-call count; persisted in the session (not sent to the LLM), survives restarts
 - **Cumulative active time** — Σ(generation) + Σ(tools), excluding idle; survives restarts via per-turn `timing-snapshot` entries
 - **Session span** — wall-clock from first to last message (includes idle), shown first
 - **History recompute** — restores totals from the session file on restart; `/tree` branches include pre-jump history (ancestor chain)
@@ -43,6 +44,13 @@ While working (live-updating, Chinese / English):
 ```
 ⏱ 会话跨度 1h02m · 累计活跃 12.4s (3轮) · 本轮已耗时 5m37s · 生成 1.7s · 工具运行中 5m35s
 ⏱ elapsed 1h02m · active time 12.4s (3 turns) · turn 5m37s · gen 1.7s · tool running 5m35s
+```
+
+Per-reply annotation (a dim line right below each final reply):
+
+```
+⏱ 耗时 45.2s · 🔧 3 次工具调用
+⏱ 45.2s · 🔧 3 tool calls
 ```
 
 ## Slash commands
@@ -89,6 +97,16 @@ Run `/timing list` again to hide the list.
 - A confirmation notification is shown at the bottom of the screen (e.g. `timing language: en`).
 - The setting is in-memory: it resets to `auto` on pi restart.
 
+### `/timing lines on|off` — per-reply annotation lines
+
+```bash
+/timing lines       # toggle
+/timing lines off   # disable
+/timing lines on    # enable (default)
+```
+
+A dim line is appended below each final reply: total reply time (user message → reply done) and tool-call count. The line's language is frozen from the message that started the reply. Toggle is in-memory (resets to on at restart); already-written lines stay in the session.
+
 ## Terminology
 
 | 中文 | English |
@@ -114,6 +132,7 @@ Run `/timing list` again to hide the list.
 - `message_start` / `message_end` events for generation time (thinking end anchored at the stream's `thinking_end` event)
 - `tool_execution_start` / `tool_execution_end` for tool wall-clock (parallel groups counted once)
 - A `timing-snapshot` custom entry is appended after each final reply so restarts restore exact values instead of timestamp-delta estimates
+- A `timing-line` custom entry renders the per-reply annotation line; appended at `turn_end` (the final assistant message is already persisted there, so the line lands right below the reply)
 - `session_start` / `session_tree` recompute history from the session JSONL (ancestor chain for `/tree` branches)
 - `input` event detects the language of your messages (CJK ratio) and switches the widget language; `Intl` system locale is the initial value
 

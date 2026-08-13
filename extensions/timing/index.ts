@@ -6,6 +6,10 @@
  *   工具中:   ⏱ 生成 8.2s · 工具运行中 3.5s
  *   结算后:   ⏱ 上次回复 45.2s (生成 12.4s · 思考≈8.1s · 工具 32.8s)  ·  累计活跃 6m12s (42轮)
  *
+ * 逐回复标注行（每条最终回复下方，随会话持久化，不进 LLM 上下文）：
+ *   ⏱ 耗时 45.2s · 🔧 3 次工具调用
+ *   ⏱ 45.2s · 🔧 3 tool calls
+ *
  * 口径说明：
  *   - 上次回复总耗时 = 用户消息开始 → 最终回复结束（含中间所有生成与工具执行）
  *   - 生成 = 每次 LLM 流式墙钟（含思考+回复）；思考≈ 为流式中首个非-thinking 增量估算，仅展示不累加
@@ -16,6 +20,7 @@
  *   /timing            开关 widget
  *   /timing list       切换最近 20 轮明细列表
  *   /timing lang zh|en|auto   强制语言 / 自动（默认 auto，跟随消息语言）
+ *   /timing lines on|off      逐回复标注行开关（默认 on）
  *
  * 多语言：初始取系统 locale（Intl），input 事件按 CJK 占比自动切换中/英。
  */
@@ -34,6 +39,7 @@ interface TurnDetail {
 export default function (pi: ExtensionAPI) {
 	let enabled = true;
 	let showDetail = false;
+	let showLines = true; // 逐回复标注行（/timing lines 开关）
 
 	// ---- 多语言（auto 跟随用户消息语言；系统 locale 定初始；命令可强制）----
 	type LangMode = "auto" | "zh" | "en";
@@ -86,6 +92,8 @@ export default function (pi: ExtensionAPI) {
 	let roundGenMs = 0;
 	let roundThinkingMs = 0; // 本轮思考累计（结算行展示用）
 	let roundToolMs = 0;
+	let roundToolCalls = 0; // 本轮工具调用次数（标注行展示用）
+	let lineAppended = false; // 本轮是否已追加标注行（防重）
 	let lastReplyMs = 0;
 	let lastReplyGenMs = 0;
 	let lastReplyToolMs = 0;
@@ -152,6 +160,12 @@ export default function (pi: ExtensionAPI) {
 		}
 		// 天级：XdYYh（小时补零）
 		return `${Math.floor(totalH / 24)}d${String(totalH % 24).padStart(2, "0")}h`;
+	}
+
+	/** 标注行文案（语言为追加时定格的值，不随后续消息语言变化） */
+	function buildLine(d: { ms: number; tools: number; lang: "zh" | "en" }): string {
+		if (d.lang === "zh") return `⏱ 耗时 ${fmt(d.ms)} · 🔧 ${d.tools} 次工具调用`;
+		return `⏱ ${fmt(d.ms)} · 🔧 ${d.tools} tool call${d.tools === 1 ? "" : "s"}`;
 	}
 
 	function stopToolTicker() {
@@ -263,6 +277,8 @@ export default function (pi: ExtensionAPI) {
 		roundGenMs = 0;
 		roundThinkingMs = 0;
 		roundToolMs = 0;
+		roundToolCalls = 0;
+		lineAppended = false;
 		genStartMs = 0;
 		sawThinking = false;
 		thinkingEndMs = 0;
@@ -390,6 +406,20 @@ export default function (pi: ExtensionAPI) {
 
 	// ---- 事件 ----
 
+	// 逐回复标注行渲染（条目语言在追加时定格）
+	// "reply-stats" 兼容旧版 pi-replystats 包写入的历史条目（数据格式相同），删除该包后历史行仍可显示
+	const lineRenderer = (entry: { data?: { ms: number; tools: number; lang: "zh" | "en" } }, _options: unknown, theme: { fg: (k: string, s: string) => string }) => {
+		const d = entry.data ?? { ms: 0, tools: 0, lang: "en" };
+		const dim = (s: string) => theme.fg("dim", s);
+		// 先截断再加颜色，避免 ANSI 序列干扰宽度计算
+		return {
+			render: (width: number) => [dim(truncateToWidth(buildLine(d), width))],
+			invalidate: () => {},
+		};
+	};
+	pi.registerEntryRenderer("timing-line", lineRenderer);
+	pi.registerEntryRenderer("reply-stats", lineRenderer);
+
 	pi.on("input", async (event, ctx) => {
 		// 自动跟随用户消息语言（斜杠命令和过短输入不触发，避免误切）
 		if (langMode !== "auto") return;
@@ -420,6 +450,8 @@ export default function (pi: ExtensionAPI) {
 			roundGenMs = 0;
 			roundThinkingMs = 0;
 			roundToolMs = 0;
+			roundToolCalls = 0;
+			lineAppended = false;
 			spanLastTs = nowMs; // 新消息提交，会话跨度推进
 			turns++;
 			return;
@@ -482,6 +514,16 @@ export default function (pi: ExtensionAPI) {
 		updateWidget(ctx);
 	});
 
+	pi.on("turn_end", async (event) => {
+		// 标注行只在最终轮次（stop/length）追加；error/aborted 轮次跳过，避免重试产生双行。
+		// 此时最终 assistant 消息已持久化，entry 落在回复正下方（message_end 时尚未落盘，不能在那里追加）。
+		if (!showLines || lineAppended || roundStartMs === undefined || lastReplyMs === 0) return;
+		const stop = (event.message as { stopReason?: string }).stopReason;
+		if (stop !== "stop" && stop !== "length") return;
+		lineAppended = true;
+		pi.appendEntry("timing-line", { ms: lastReplyMs, tools: roundToolCalls, lang: currentLang });
+	});
+
 	pi.on("tool_execution_start", async (_e, ctx) => {
 		if (activeTools === 0) {
 			toolChunkStartMs = Date.now();
@@ -489,6 +531,7 @@ export default function (pi: ExtensionAPI) {
 			toolTicker = setInterval(() => updateWidget(ctx), 500);
 		}
 		activeTools++;
+		roundToolCalls++;
 		updateWidget(ctx);
 	});
 
@@ -515,11 +558,15 @@ export default function (pi: ExtensionAPI) {
 	// ---- 命令 ----
 
 	pi.registerCommand("timing", {
-		description: "Toggle timing widget; /timing list = detail; /timing lang zh|en|auto = language",
+		description: "Toggle timing widget; /timing list = detail; /timing lang zh|en|auto = language; /timing lines on|off = per-reply lines",
 		handler: async (args, ctx) => {
 			const a = (args ?? "").trim();
 			if (a === "list") {
 				showDetail = !showDetail;
+			} else if (a === "lines" || a.startsWith("lines ")) {
+				const v = a.slice(5).trim();
+				showLines = v !== "off";
+				ctx.ui.notify(`timing lines: ${showLines ? "on" : "off"}`, "info");
 			} else if (a.startsWith("lang")) {
 				const v = a.slice(4).trim();
 				if (v === "zh" || v === "en") {

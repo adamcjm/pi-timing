@@ -18,7 +18,7 @@
     "extensions": [
       "./extensions"
     ],
-    "image": "https://raw.githubusercontent.com/adamcjm/pi-timing/main/docs/demo.gif"
+    "image": "https://raw.githubusercontent.com/adamcjm/pi-timing/main/docs/demo-en.gif"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

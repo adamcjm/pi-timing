@@ -92,8 +92,9 @@ export default function (pi: ExtensionAPI) {
 	let roundGenMs = 0;
 	let roundThinkingMs = 0; // 本轮思考累计（结算行展示用）
 	let roundToolMs = 0;
-	let roundToolCalls = 0; // 本轮工具调用次数（标注行展示用）
-	let lineAppended = false; // 本轮是否已追加标注行（防重）
+	let roundToolCalls = 0; // 当前 LLM 轮工具调用次数（中间轮标注行用）
+	let turnToolCalls = 0; // 本轮（user→最终回复）工具总次数（回复行用）
+	let lineAppended = false; // 本轮是否已追加回复行（防重）
 	let lastReplyMs = 0;
 	let lastReplyGenMs = 0;
 	let lastReplyToolMs = 0;
@@ -162,10 +163,28 @@ export default function (pi: ExtensionAPI) {
 		return `${Math.floor(totalH / 24)}d${String(totalH % 24).padStart(2, "0")}h`;
 	}
 
-	/** 标注行文案（语言为追加时定格的值，不随后续消息语言变化） */
-	function buildLine(d: { ms: number; tools: number; lang: "zh" | "en" }): string {
-		if (d.lang === "zh") return `⏱ 耗时 ${fmt(d.ms)} · 🔧 ${d.tools} 次工具调用`;
-		return `⏱ ${fmt(d.ms)} · 🔧 ${d.tools} tool call${d.tools === 1 ? "" : "s"}`;
+	/** 标注行文案（语言为追加时定格的值，不随后续消息语言变化）
+	 *  兼容三种数据形态：round（每轮 AI 输出）/ reply（最终回复）/ 旧版 {ms,...}（pi-replystats 与 v1.2.0） */
+	function buildLine(d: {
+		kind?: "round" | "reply";
+		genMs?: number;
+		replyMs?: number;
+		ms?: number;
+		tools: number;
+		lang: "zh" | "en";
+	}): string {
+		const zh = d.lang === "zh";
+		const calls = (n: number) => (zh ? `${n} 次工具调用` : `${n} tool call${n === 1 ? "" : "s"}`);
+		if (d.kind === "round" && typeof d.genMs === "number") {
+			return zh ? `⏱ 生成 ${fmt(d.genMs)} · 🔧 ${calls(d.tools)}` : `⏱ gen ${fmt(d.genMs)} · 🔧 ${calls(d.tools)}`;
+		}
+		if (d.kind === "reply" && typeof d.replyMs === "number" && typeof d.genMs === "number") {
+			return zh
+				? `⏱ 回复 ${fmt(d.replyMs)} · 🔧 ${calls(d.tools)} (生成 ${fmt(d.genMs)})`
+				: `⏱ reply ${fmt(d.replyMs)} · 🔧 ${calls(d.tools)} (gen ${fmt(d.genMs)})`;
+		}
+		const ms = d.ms ?? 0; // 旧版形态
+		return zh ? `⏱ 耗时 ${fmt(ms)} · 🔧 ${calls(d.tools)}` : `⏱ ${fmt(ms)} · 🔧 ${calls(d.tools)}`;
 	}
 
 	function stopToolTicker() {
@@ -278,6 +297,7 @@ export default function (pi: ExtensionAPI) {
 		roundThinkingMs = 0;
 		roundToolMs = 0;
 		roundToolCalls = 0;
+		turnToolCalls = 0;
 		lineAppended = false;
 		genStartMs = 0;
 		sawThinking = false;
@@ -408,8 +428,8 @@ export default function (pi: ExtensionAPI) {
 
 	// 逐回复标注行渲染（条目语言在追加时定格）
 	// "reply-stats" 兼容旧版 pi-replystats 包写入的历史条目（数据格式相同），删除该包后历史行仍可显示
-	const lineRenderer = (entry: { data?: { ms: number; tools: number; lang: "zh" | "en" } }, _options: unknown, theme: { fg: (k: string, s: string) => string }) => {
-		const d = entry.data ?? { ms: 0, tools: 0, lang: "en" };
+	const lineRenderer = (entry: { data?: Parameters<typeof buildLine>[0] }, _options: unknown, theme: { fg: (k: string, s: string) => string }) => {
+		const d = entry.data ?? { tools: 0, lang: "en" as const };
 		const dim = (s: string) => theme.fg("dim", s);
 		// 先截断再加颜色，避免 ANSI 序列干扰宽度计算
 		return {
@@ -451,6 +471,7 @@ export default function (pi: ExtensionAPI) {
 			roundThinkingMs = 0;
 			roundToolMs = 0;
 			roundToolCalls = 0;
+			turnToolCalls = 0;
 			lineAppended = false;
 			spanLastTs = nowMs; // 新消息提交，会话跨度推进
 			turns++;
@@ -461,6 +482,7 @@ export default function (pi: ExtensionAPI) {
 		sawThinking = false;
 		thinkingEndMs = 0;
 		firstTextMs = 0;
+		roundToolCalls = 0; // 新 LLM 轮开始
 		updateWidget(ctx);
 	});
 
@@ -515,13 +537,25 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_end", async (event) => {
-		// 标注行只在最终轮次（stop/length）追加；error/aborted 轮次跳过，避免重试产生双行。
-		// 此时最终 assistant 消息已持久化，entry 落在回复正下方（message_end 时尚未落盘，不能在那里追加）。
-		if (!showLines || lineAppended || roundStartMs === undefined || lastReplyMs === 0) return;
+		if (!showLines || roundStartMs === undefined) return;
+		// 此时本轮 assistant 消息已持久化：中间轮 entry 落在其工具结果之后，最终轮 entry 落在回复正下方
 		const stop = (event.message as { stopReason?: string }).stopReason;
-		if (stop !== "stop" && stop !== "length") return;
+		if (stop === "error" || stop === "aborted") return; // 中断/出错不写行，避免重试产生双行
+		if (stop === "toolUse") {
+			// 中间轮：每条 AI 输出一行（生成耗时 + 本轮工具次数）
+			pi.appendEntry("timing-line", { kind: "round", genMs: lastGenMs, tools: roundToolCalls, lang: currentLang });
+			return;
+		}
+		// 最终回复：回复总耗时（用户消息 → 回复结束）+ 工具总次数 + 末轮生成耗时
+		if (lineAppended || lastReplyMs === 0) return;
 		lineAppended = true;
-		pi.appendEntry("timing-line", { ms: lastReplyMs, tools: roundToolCalls, lang: currentLang });
+		pi.appendEntry("timing-line", {
+			kind: "reply",
+			replyMs: lastReplyMs,
+			genMs: lastGenMs,
+			tools: turnToolCalls,
+			lang: currentLang,
+		});
 	});
 
 	pi.on("tool_execution_start", async (_e, ctx) => {
@@ -532,6 +566,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		activeTools++;
 		roundToolCalls++;
+		turnToolCalls++;
 		updateWidget(ctx);
 	});
 

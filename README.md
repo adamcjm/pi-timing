@@ -12,7 +12,7 @@ Timing widget for [pi](https://pi.dev) — shows how long each turn actually too
 
 - **Per-turn generation time** — wall-clock of each LLM stream (thinking + reply), with an estimated thinking split (`think≈`)
 - **Tool time** — wall-clock execution; parallel tools counted once
-- **Per-reply annotation line** — under each final reply, a dim line shows the reply's total time (user message → reply done, thinking + generation + tools) and tool-call count; persisted in the session (not sent to the LLM), survives restarts
+- **Per-reply annotation line** — under each final reply, a dim line shows the reply's total time (user message → reply done, thinking + generation + tools) and tool-call count; each intermediate AI output (a tool-calling round) gets its own line with its generation time; persisted in the session (not sent to the LLM), survives restarts
 - **Cumulative active time** — Σ(generation) + Σ(tools), excluding idle; survives restarts via per-turn `timing-snapshot` entries
 - **Session span** — wall-clock from first to last message (includes idle), shown first
 - **History recompute** — restores totals from the session file on restart; `/tree` branches include pre-jump history (ancestor chain)
@@ -46,11 +46,13 @@ While working (live-updating, Chinese / English):
 ⏱ elapsed 1h02m · active time 12.4s (3 turns) · turn 5m37s · gen 1.7s · tool running 5m35s
 ```
 
-Per-reply annotation (a dim line right below each final reply):
+Per-reply annotation lines (dim, below each AI output):
 
 ```
-⏱ 耗时 45.2s · 🔧 3 次工具调用
-⏱ 45.2s · 🔧 3 tool calls
+⏱ 生成 12.4s · 🔧 3 次工具调用        ← each intermediate AI output (tool-calling round)
+⏱ 回复 45.2s · 🔧 37 次工具调用 (生成 12.4s)   ← final reply: total reply time + total tools + last round's gen
+⏱ gen 12.4s · 🔧 3 tool calls
+⏱ reply 45.2s · 🔧 37 tool calls (gen 12.4s)
 ```
 
 ## Slash commands
@@ -105,7 +107,7 @@ Run `/timing list` again to hide the list.
 /timing lines on    # enable (default)
 ```
 
-A dim line is appended below each final reply: total reply time (user message → reply done) and tool-call count. The line's language is frozen from the message that started the reply. Toggle is in-memory (resets to on at restart); already-written lines stay in the session.
+A dim line is appended below every AI output: intermediate tool-calling rounds show their generation time and tool-call count; the final reply additionally shows the total reply time (user message → reply done). The line's language is frozen from the message that started the reply. Toggle is in-memory (resets to on at restart); already-written lines stay in the session.
 
 ## Terminology
 
